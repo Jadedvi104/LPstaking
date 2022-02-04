@@ -44,17 +44,18 @@ contract LPStaking is Ownable {
     uint32 endPool;
 
     uint256 public rewardRate = 1930000000000000000;
-    uint256 public lastUpdateTime;
-    uint256 public rewardPerTokenStored;
+    uint256 public lastUpdateTime = 0; // edit
+    uint256 public rewardPerTokenStored = 0; // edit
     uint256 public totalFee;
 
     uint256 private _totalSupply;
 
-    uint256 private MAXIMUM_STAKING = 50000000000000000000000; //50,000 LPtokens
-    uint256 private TOTAL_LAKRIMA_PER_POOL = 16666666000000000000000000; //16,666,666 LKM
+    uint256 private MAXIMUM_STAKING = 50000000000000000000000; //50,000 LPtokens dummy
+    uint256 private TOTAL_LAKRIMA_PER_POOL = 16666666000000000000000000; //16,666,666 LKM dummy
     uint256 public REWARD_RATE = 2000; // dummy reward rate
-    uint256 public FEE;
-    uint256 public MINIMUM_STAKING = 1000000000000000000000; // 100 LPToken is minimum
+    uint256 public FEE = 4250; // dummy
+    uint256 public MINIMUM_STAKING = 1000000000000000000000; // dummy
+    uint256 public MINIMUM_AMOUNT_CLAIM = 100; //dummy
 
     // ************** Struct ******************** //
     struct Stake {
@@ -71,16 +72,18 @@ contract LPStaking is Ownable {
     mapping(address => uint256) private _lockedBalances;
     mapping(address => uint256) private _releaseTime;
     mapping(address => uint256) private _lockedRewards;
-    mapping(address => uint256) private rewards;
     mapping(address => uint256) private claimedReward;
     mapping(address => uint128) public stakeCounts;
-    mapping(address => mapping(uint32 => Stake)) stakers; // edit
+    mapping(address => mapping(uint128 => Stake)) stakers; // need edit
+
+    mapping(address => uint256) public accountLastClaim;
 
     // ************** Connected Address ******************** //
 
     address public lpTokenAddress;
 
     IERC20 public rewardsTokenContract;
+    IERC20 public lakrimaAddress;
 
     // ************** Modifier ******************** //
 
@@ -98,23 +101,25 @@ contract LPStaking is Ownable {
     // ************** Update Function ******************** //
 
     function initialize() public {
-        lpTokenAddress = 0x97d6864A34D051914894973Af56DCF0B10d26060;
         endPool = now + 365 days;
     }
 
-    function updateLPAddress(address lpAddress) public onlyOwner {
-        lpTokenAddress = lpAddress;
+    function updateLPAddress(address _address) public onlyOwner {
+        lpTokenAddress = IERC20(_address);
+    }
+
+    function updateLakrimaAddress(address _address) public onlyOwner {
+        lakrimaAddress = IERC20(_address);
     }
 
     function updateEndPool(uint32 timeEnd) public onlyOwner {
         endPool = timeEnd;
     }
 
-
     // ************** View Functions ******************** //
 
     function checkUserLPBalance(address account) public view returns (uint256) {
-        return IERC20(lpTokenAddress).balanceOf(account);
+        return lpTokenAddress.balanceOf(account);
     }
 
     function getTimestamp() public view returns (uint32) {
@@ -185,7 +190,7 @@ contract LPStaking is Ownable {
 
         //Reward = Staked Amount * Reward Rate * TimeDiff(in Seconds) / RewardInterval
         uint256 totalReward = 0;
-        uint256 count = stakeCounts[account];
+        uint128 count = stakeCounts[account];
         for (uint256 index = 0; index < count; index++) {
             uint256 reward = ((stakers[account][index].amount *
                 REWARD_RATE *
@@ -198,12 +203,12 @@ contract LPStaking is Ownable {
     }
 
     function rewards(address account) public view returns (uint256) {
-        if (_battlePowerBalances[account] == 0) {
+        if (balances[account] == 0) {
             return tokenRewards[account];
         }
 
         return
-            ((_battlePowerBalances[account] *
+            ((balances[account] *
                 (rewardPerToken() - userRewardPerTokenPaid[account])) / 1e18) +
             tokenRewards[account];
     }
@@ -212,23 +217,6 @@ contract LPStaking is Ownable {
         return
             (rewards(account) >= MINIMUM_AMOUNT_CLAIM) &&
             (getTimestamp() >= accountLastClaim[account] + 10 days);
-    }
-
-
-    function getRank(address account) public view returns (uint256) {
-        Rank[] memory results = new Rank[](ranks.length);
-        for (uint256 index = 0; index < ranks.length; index++) {
-            results[index] = ranks[index];
-        }
-
-        results = sort(results);
-
-        for (uint256 index = 0; index < results.length; index++) {
-            if (results[index].account == account) {
-                return index + 1;
-            }
-        }
-        return 0;
     }
 
     /************************* ACTION FUNCTIONS *****************************/
@@ -240,7 +228,7 @@ contract LPStaking is Ownable {
 
         uint256 reward = earned(msg.sender);
 
-        lock(balance, reward); // Lock 3 Days
+        lock(balance, reward); // Lock dummy Days
 
         claimedReward = claimedReward + reward;
 
@@ -265,8 +253,8 @@ contract LPStaking is Ownable {
         uint256 fee = (amount * FEE) / 10000;
 
         //Transfer ECIO
-        ecioToken.transfer(msg.sender, amount - fee);
-        ecioToken.transfer(msg.sender, reward);
+        lakrimaAddress.transfer(msg.sender, amount - fee);
+        lakrimaAddress.transfer(msg.sender, reward);
 
         totalFee = totalFee + fee;
 
@@ -285,9 +273,9 @@ contract LPStaking is Ownable {
         uint256 amount = _lockedBalances[msg.sender];
         uint256 reward = _lockedRewards[msg.sender];
 
-        //Transfer ECIO
-        ecioToken.transfer(msg.sender, amount);
-        ecioToken.transfer(msg.sender, reward);
+        //Transfer Lakrima
+        lakrimaAddress.transfer(msg.sender, amount);
+        lakrimaAddress.transfer(msg.sender, reward);
 
         _lockedBalances[msg.sender] = 0;
         _lockedRewards[msg.sender] = 0;
@@ -300,6 +288,8 @@ contract LPStaking is Ownable {
         //validate
         uint256 LPBalance = checkUserLPBalance(msg.sender);
         uint256 timestamp = getTimestamp();
+        uint128 stakeId = stakeCounts[msg.sender];
+
         require(!isPoolClose(), "Pool is closed");
         require(amount <= LPBalance);
         require(_totalSupply + amount <= MAXIMUM_STAKING);
@@ -307,9 +297,9 @@ contract LPStaking is Ownable {
 
         _totalSupply = _totalSupply + amount;
         balances[msg.sender] = balances[msg.sender] + amount;
-        stakers[msg.sender].push(Stake(amount, timestamp)); // need to be edited
+        stakers[msg.sender][stakeId] = Stake(balances[msg.sender], timestamp); // need to recheck
         stakeCounts[msg.sender] = stakeCounts[msg.sender] + 1;
-        IERC20(lpTokenAddress).transferFrom(msg.sender, address(this), amount); // transfer ?
+        lpTokenAddress.transferFrom(msg.sender, address(this), amount); // transfer ?
 
         emit StakeEvent(msg.sender, timestamp, amount);
     }
@@ -320,60 +310,8 @@ contract LPStaking is Ownable {
         _releaseTime[msg.sender] = getTimestamp() + 3 days; // dummy numbers
     }
 
-    function updateRank() private {
-        if (!userHasRank[msg.sender]) {
-            userRankIds[msg.sender] = ranks.length;
-            ranks.push(
-                Rank(
-                    msg.sender,
-                    _battlePowerBalances[msg.sender],
-                    userStakedNFTCount[msg.sender]
-                )
-            );
-            userHasRank[msg.sender] = true;
-        } else {
-            uint256 rankId = userRankIds[msg.sender];
-            ranks[rankId].totalBattlePower = _battlePowerBalances[msg.sender];
-            ranks[rankId].amount = userStakedNFTCount[msg.sender];
-        }
-    }
-
-    function calUserShare(address userAddress) internal {
-        _totalSupply
-
-    }
-
-    //******************** sorting **********************//
-    function sort(Rank[] memory data) private pure returns (Rank[] memory) {
-        quickSort(data, int256(0), int256(data.length - 1));
-        return data;
-    }
-
-    function quickSort(
-        Rank[] memory arr,
-        int256 left,
-        int256 right
-    ) private pure {
-        int256 i = left;
-        int256 j = right;
-        if (i == j) return;
-        Rank memory pivot = arr[uint256(left + (right - left) / 2)];
-        while (i <= j) {
-            while (arr[uint256(i)].totalBattlePower > pivot.totalBattlePower)
-                i++;
-            while (pivot.totalBattlePower > arr[uint256(j)].totalBattlePower)
-                j--;
-            if (i <= j) {
-                (arr[uint256(i)], arr[uint256(j)]) = (
-                    arr[uint256(j)],
-                    arr[uint256(i)]
-                );
-                i++;
-                j--;
-            }
-        }
-        if (left < j) quickSort(arr, left, j);
-        if (i < right) quickSort(arr, i, right);
+    function getUserShare(address userAddress) internal {
+        (balances[msg.sender] / _totalSupply) * 100; // edit
     }
 
     //*************** transfer *********************//
