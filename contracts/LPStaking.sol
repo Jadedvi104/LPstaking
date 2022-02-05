@@ -10,6 +10,7 @@ contract LPStaking is Ownable {
     using Counters for Counters.Counter;
 
     // ************** Variables ******************** //
+    uint256 startPool;
     uint256 endPool;
 
     uint256 public lastUpdateTime = 0; // edit
@@ -19,12 +20,12 @@ contract LPStaking is Ownable {
     uint256 private _totalSupply;
 
     uint256 private MAXIMUM_STAKING = 50000000000000000000000; //50,000 LPtokens dummy
-    uint256 public MINIMUM_STAKING = 1000000000000000000000; // dummy
+    uint256 public MINIMUM_STAKING = 100000000000000000000; // 1000 LP dummy
     uint256 public MINIMUM_AMOUNT_CLAIM = 100; //dummy
 
-    uint256 private TOTAL_LAKRIMA_PER_POOL = 16666666000000000000000000; //16,666,666 LKM dummy
+    uint256 private TOTAL_LAKRIMA_PER_POOL = 10000000000000000000000000; //10,000,000 LKM dummy
     uint256 public REWARD_RATE = 2000; // dummy reward rate
-    uint256 public REWARD_PER_BLOCK = 100;
+    uint256 public REWARD_PER_SEC = TOTAL_LAKRIMA_PER_POOL / (endPool - startPool);  //TOTAL_LAKRIMA_PER_POOL(wei) / (endPool - startPool)
     uint256 public BLOCK_PER_YEAR = 100;
 
     uint256 public FEE = 4250; // dummy
@@ -76,6 +77,7 @@ contract LPStaking is Ownable {
     // ************** Update Function ******************** //
 
     function initialize() public {
+        startPool = getTimestamp();
         endPool = getTimestamp() + 365 days;
     }
 
@@ -270,7 +272,7 @@ contract LPStaking is Ownable {
  
 
     function stake(uint256 amount) external {
-
+        
         //validate
         uint256 LPBalance = checkUserLPBalance(msg.sender);
         uint256 timestamp = getTimestamp();
