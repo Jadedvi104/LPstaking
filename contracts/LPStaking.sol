@@ -14,7 +14,7 @@ contract LPStaking is Ownable {
     uint256 endPool;
 
     uint256 public lastUpdateTime = 0; // edit
-    uint256 public rewardPerTokenStored = 0; // edit
+    uint256 public rewardPerSecStored = 0; // edit
     uint256 public totalFee;
 
     uint256 private _totalSupply;
@@ -37,7 +37,7 @@ contract LPStaking is Ownable {
 
     // ************** MAPPINGs ******************** //
 
-    mapping(address => uint256) public userRewardPerTokenPaid;
+    mapping(address => uint256) public userRewardPerSecPaid;
     mapping(address => uint256) public tokenRewards;
     mapping(address => uint256) private userRewards;
     mapping(address => uint256) private _userPoolSharePercent;
@@ -57,22 +57,36 @@ contract LPStaking is Ownable {
     IERC20 public lpTokenAddress;
     IERC20 public lakrimaAddress;
 
-    // ************** Modifier ******************** //
-
-    modifier updateReward(address account) {
-        // rewardPerTokenStored = rewardPerToken();
-        lastUpdateTime = block.timestamp;
-
-        userRewards[account] = earned(account);
-        // userRewardPerTokenPaid[account] = rewardPerTokenStored;
-        _;
-    }
-
     // ************** Event ******************** //
+
+    event StakeEvent(
+        address indexed account,
+        uint256 indexed timestamp,
+        uint256 amount
+    );
+    event UnStakeEvent(
+        address indexed account,
+        uint256 indexed timestamp,
+        uint256 amount,
+        uint256 reward
+    );
+    event UnStakeNowEvent(
+        address indexed account,
+        uint256 indexed timestamp,
+        uint256 amount,
+        uint256 reward,
+        uint256 fee
+    );
+    event ClaimEvent(
+        address indexed account,
+        uint256 indexed timestamp,
+        uint256 amount,
+        uint256 reward
+    );
 
     // ************** Update Function ******************** //
 
-    function initialize() public {
+    function initialize() public onlyOwner {
         startPool = getTimestamp();
         endPool = getTimestamp() + 365 days;
         REWARD_PER_SEC = TOTAL_LAKRIMA_PER_POOL / (endPool - startPool);
@@ -94,12 +108,12 @@ contract LPStaking is Ownable {
 
     // Unfinished
     function userStakePeriod(address _address) public view returns (uint256) {
-        uint256 count = stakeCounts[msg.sender];
-        return getTimestamp() - stakers[_address][count - 1].timestamp;
+        uint256 count = stakeCounts[_address];
+        return getTimestamp() - stakers[_address][count - 1].timestamp; // need edit
     }
 
     function userShareOfPool(address _address) public view returns (uint256) {
-        return (balances[_address] * 100000) / _totalSupply;
+        return (balances[_address] * 1e5) / _totalSupply;
     }
 
     function checkUserLPBalance(address account) public view returns (uint256) {
@@ -150,15 +164,17 @@ contract LPStaking is Ownable {
         return balances[_account];
     }
 
-    function rewardPerToken() public view returns (uint256) {
-        if (_totalSupply == 0) {
-            return 0;
-        }
-        return
-            rewardPerTokenStored +
-            (((block.timestamp - lastUpdateTime) * REWARD_PER_SEC * 1e18) /
-                _totalSupply);
-    }
+    // function rewardPerSec(address account) public view returns (uint256) {
+    //     if (_totalSupply == 0) {
+    //         return 0;
+    //     }
+    //     return
+    //         rewardPerSecStored +
+    //         ((block.timestamp - lastUpdateTime) *
+    //             REWARD_PER_SEC *
+    //             userShareOfPool(account)) /
+    //         1e5;
+    // }
 
     function earned(address account) public view returns (uint256) {
         if (_lockedRewards[account] != 0) {
@@ -173,10 +189,10 @@ contract LPStaking is Ownable {
         }
 
         //Reward = REWARD_PER_SEC * TimeDiff(in Seconds) * ShareOfPool
-
         uint256 totalReward = 0;
         uint128 count = stakeCounts[account];
-        for (uint128 index = 0; index < count; index++) {
+
+        for (uint256 index = 0; index < count; index++) {
             uint256 reward = (userStakePeriod(msg.sender) *
                 REWARD_PER_SEC *
                 userShareOfPool(msg.sender)) / 1e5;
@@ -186,26 +202,9 @@ contract LPStaking is Ownable {
         return totalReward;
     }
 
-    function rewards(address account) public view returns (uint256) {
-        if (balances[account] == 0) {
-            return tokenRewards[account];
-        }
-
-        return
-            ((balances[account] *
-                (rewardPerToken() - userRewardPerTokenPaid[account])) / 1e18) +
-            tokenRewards[account];
-    }
-
-    function canClaimReward(address account) public view returns (bool) {
-        return
-            (rewards(account) >= MINIMUM_AMOUNT_CLAIM) &&
-            (getTimestamp() >= accountLastClaim[account] + 10 days); // dummy
-    }
-
     /************************* ACTION FUNCTIONS *****************************/
 
-    function unStake() external updateReward(msg.sender) {
+    function unStake() external {
         require(balances[msg.sender] != 0);
 
         uint256 balance = balances[msg.sender];
@@ -223,9 +222,11 @@ contract LPStaking is Ownable {
 
         stakeCounts[msg.sender] = 0;
         balances[msg.sender] = 0;
+
+        emit UnStakeEvent(msg.sender, getTimestamp(), balance, reward);
     }
 
-    function unStakeNow() external updateReward(msg.sender) {
+    function unStakeNow() external {
         require(_lockedBalances[msg.sender] != 0);
 
         uint256 amount = _lockedBalances[msg.sender];
@@ -242,10 +243,11 @@ contract LPStaking is Ownable {
         _lockedBalances[msg.sender] = 0;
         _lockedRewards[msg.sender] = 0;
         _releaseTime[msg.sender] = 0;
+
+        emit UnStakeNowEvent(msg.sender, getTimestamp(), amount, reward, fee);
     }
 
-    function claim() external updateReward(msg.sender) {
-        require(canClaimReward(msg.sender), "Reward: Can't claim");
+    function claim() external {
         require(_releaseTime[msg.sender] != 0);
         require(_releaseTime[msg.sender] <= getTimestamp());
         require(_lockedBalances[msg.sender] != 0);
@@ -262,6 +264,8 @@ contract LPStaking is Ownable {
         _releaseTime[msg.sender] = 0;
 
         accountLastClaim[msg.sender] = getTimestamp();
+
+        emit ClaimEvent(msg.sender, getTimestamp(), amount, reward);
     }
 
     function stake(uint256 amount) external {
@@ -279,6 +283,8 @@ contract LPStaking is Ownable {
         stakers[msg.sender].push(Stake(amount, timestamp));
         stakeCounts[msg.sender] = stakeCounts[msg.sender] + 1;
         lpTokenAddress.transferFrom(msg.sender, address(this), amount);
+
+        emit StakeEvent(msg.sender, timestamp, amount);
     }
 
     function lock(uint256 amount, uint256 reward) internal {
