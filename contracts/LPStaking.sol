@@ -60,11 +60,11 @@ contract LPStaking is Ownable {
     // ************** Modifier ******************** //
 
     modifier updateReward(address account) {
-        rewardPerTokenStored = rewardPerToken();
+        // rewardPerTokenStored = rewardPerToken();
         lastUpdateTime = block.timestamp;
 
         userRewards[account] = earned(account);
-        userRewardPerTokenPaid[account] = rewardPerTokenStored;
+        // userRewardPerTokenPaid[account] = rewardPerTokenStored;
         _;
     }
 
@@ -156,7 +156,7 @@ contract LPStaking is Ownable {
         }
         return
             rewardPerTokenStored +
-            (((block.timestamp - lastUpdateTime) * REWARD_RATE * 1e18) /
+            (((block.timestamp - lastUpdateTime) * REWARD_PER_SEC * 1e18) /
                 _totalSupply);
     }
 
@@ -179,7 +179,7 @@ contract LPStaking is Ownable {
         for (uint128 index = 0; index < count; index++) {
             uint256 reward = (userStakePeriod(msg.sender) *
                 REWARD_PER_SEC *
-                userShareOfPool(msg.sender)) / 1e23;
+                userShareOfPool(msg.sender)) / 1e5;
             totalReward = totalReward + reward;
         }
 
