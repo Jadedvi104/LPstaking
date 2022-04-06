@@ -128,7 +128,7 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
             return "STAKED";
         }
 
-        if (_lockedReward[_account][tier] != 0) {
+        if (_lockedReward[_account] != 0) {
             return "REWARD IS LOCKED";
         }
 
@@ -209,7 +209,7 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
         require(_releaseRewardTime[msg.sender] != 0);
         require(_releaseRewardTime[msg.sender] <= getTimestamp());
 
-        uint256 reward = _lockedReward[msg.sender][tier];
+        uint256 reward = _lockedReward[msg.sender];
 
         //Transfer Lakrima
         ECIO_TOKEN.transfer(msg.sender, reward);
@@ -310,8 +310,8 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
     }
 
     function lockReward(uint256 reward, uint32 tier) internal {
-        _lockedReward[msg.sender][tier] = reward;
-        _releaseRewardTime[msg.sender][tier] = getTimestamp() + 60 days; // lock 60 days
+        _lockedReward[msg.sender] = reward;
+        _releaseRewardTime[msg.sender] = getTimestamp() + 60 days; // lock 60 days
     }
 
     /************************* Reward *******************************/
@@ -352,9 +352,9 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
             index < stakeCounts[account][THREE_MONTH];
             index++
         ) {
-            uint256 reward = (((REWARD_PER_SEC *
+            uint256 reward = ((REWARD_PER_SEC *
                 userStakePeriod(msg.sender, THREE_MONTH, index) *
-                userShareOfPool(msg.sender, THREE_MONTH, index)) * 150) / 100) /
+                userShareOfPool(msg.sender, THREE_MONTH, index)) * 2) /
                 1e5;
             totalReward += reward;
         }
@@ -364,9 +364,9 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
             index < stakeCounts[account][FOUR_MONTH];
             index++
         ) {
-            uint256 reward = (((REWARD_PER_SEC *
+            uint256 reward = ((REWARD_PER_SEC *
                 userStakePeriod(msg.sender, FOUR_MONTH, index) *
-                userShareOfPool(msg.sender, FOUR_MONTH, index)) * 150) / 100) /
+                userShareOfPool(msg.sender, FOUR_MONTH, index)) * 3) /
                 1e5;
             totalReward += reward;
         }
@@ -379,7 +379,7 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
             uint256 reward = (
                 ((REWARD_PER_SEC *
                     userStakePeriod(msg.sender, EIGHT_MONTH, index) *
-                    userShareOfPool(msg.sender, EIGHT_MONTH, index)) * 300)
+                    userShareOfPool(msg.sender, EIGHT_MONTH, index)) * 4)
             ) / 1e5;
             totalReward += reward;
         }
@@ -392,12 +392,12 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
             uint256 reward = (
                 ((REWARD_PER_SEC *
                     userStakePeriod(msg.sender, TWELVE_MONTH, index) *
-                    userShareOfPool(msg.sender, TWELVE_MONTH, index)) * 400)
+                    userShareOfPool(msg.sender, TWELVE_MONTH, index)) * 5)
             ) / 1e5;
             totalReward += reward;
         }
 
-        return totalReward - tierStoredReward;
+        return totalReward;
     }
 
     modifier updateReward(address account) {
