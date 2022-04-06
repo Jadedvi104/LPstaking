@@ -36,12 +36,14 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
     mapping(address => mapping(uint32 => uint256)) private _releaseBalancesTime;
     mapping(address => mapping(uint32 => uint256)) private _lockedBalances;
 
-    mapping(address => mapping(uint32 => uint256)) private _releaseRewardTime;
-    mapping(address => mapping(uint32 => uint256)) private _lockedReward;
+    mapping(address => uint256) private _releaseRewardTime;
+    mapping(address => uint256) private _lockedReward;
 
     mapping(address => uint256) public totalStoredRewardTier1;
+    mapping(address => uint256) public totalStoredRewardTier2;
     mapping(address => uint256) public totalStoredRewardTier3;
-    mapping(address => uint256) public totalStoredRewardTier6;
+    mapping(address => uint256) public totalStoredRewardTier4;
+    mapping(address => uint256) public totalStoredRewardTier8;
     mapping(address => uint256) public totalStoredRewardTier12;
 
     mapping(address => mapping(uint32 => uint128)) public stakeCounts;
@@ -62,15 +64,7 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
     event UnStakeEvent(
         address indexed account,
         uint256 indexed timestamp,
-        uint256 amount,
-        uint256 reward
-    );
-    event UnStakeNowEvent(
-        address indexed account,
-        uint256 indexed timestamp,
-        uint256 amount,
-        uint256 reward,
-        uint256 fee
+        uint256 amount
     );
 
     event ClaimBalanceEvent(
@@ -167,76 +161,10 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
 
     /************************* ACTION FUNCTIONS *****************************/
 
-    function unStake(uint32 tier) external updateReward(msg.sender, tier) {
+    function unStake(uint32 tier) external updateReward(msg.sender) {
         require(balances[msg.sender][tier] != 0);
 
         uint256 balance = balances[msg.sender][tier];
-        uint256 reward;
-
-        if (tier == ONE_MONTH) {
-            reward =
-                earned(msg.sender, tier) +
-                totalStoredRewardTier1[msg.sender];
-
-            lockReward(reward, tier);
-
-            //Pool's info
-            _poolClaimedReward += reward;
-
-            totalStoredRewardTier1[msg.sender] = 0;
-        }
-
-        if (tier == TWO_MONTH) {
-            reward =
-                earned(msg.sender, TWO_MONTH) +
-                totalStoredRewardTier3[msg.sender];
-
-            lockReward(reward, TWO_MONTH);
-
-            //Pool's info
-            _poolClaimedReward += reward;
-
-            totalStoredRewardTier3[msg.sender] = 0;
-        }
-
-        if (tier == THREE_MONTH) {
-            reward =
-                earned(msg.sender, THREE_MONTH) +
-                totalStoredRewardTier3[msg.sender];
-
-            lockReward(reward, THREE_MONTH);
-
-            //Pool's info
-            _poolClaimedReward += reward;
-
-            totalStoredRewardTier3[msg.sender] = 0;
-        }
-
-        if (tier == EIGHT_MONTH) {
-            reward =
-                earned(msg.sender, tier) +
-                totalStoredRewardTier6[msg.sender];
-
-            lockReward(reward, tier);
-
-            //Pool's info
-            _poolClaimedReward += reward;
-
-            totalStoredRewardTier6[msg.sender] = 0;
-        }
-
-        if (tier == TWELVE_MONTH) {
-            reward =
-                earned(msg.sender, tier) +
-                totalStoredRewardTier12[msg.sender];
-
-            lockReward(reward, tier);
-
-            //Pool's info
-            _poolClaimedReward += reward;
-
-            totalStoredRewardTier12[msg.sender] = 0;
-        }
 
         //Pool's info
         _totalSupply -= balance;
@@ -250,7 +178,14 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
         stakeCounts[msg.sender][tier] = 0;
         balances[msg.sender][tier] = 0;
 
-        emit UnStakeEvent(msg.sender, getTimestamp(), balance, reward);
+        emit UnStakeEvent(msg.sender, getTimestamp(), balance);
+    }
+
+    function someThingAboutReward(uint32 tier)
+        external
+        updateReward(msg.sender)
+    {
+        uint256 reward;
     }
 
     function claimBalance(uint32 tier) external {
@@ -271,16 +206,16 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
     }
 
     function claimReward(uint32 tier) external {
-        require(_releaseRewardTime[msg.sender][tier] != 0);
-        require(_releaseRewardTime[msg.sender][tier] <= getTimestamp());
+        require(_releaseRewardTime[msg.sender] != 0);
+        require(_releaseRewardTime[msg.sender] <= getTimestamp());
 
         uint256 reward = _lockedReward[msg.sender][tier];
 
         //Transfer Lakrima
         ECIO_TOKEN.transfer(msg.sender, reward);
 
-        _lockedReward[msg.sender][tier] = 0;
-        _releaseRewardTime[msg.sender][tier] = 0;
+        _lockedReward[msg.sender] = 0;
+        _releaseRewardTime[msg.sender] = 0;
 
         emit ClaimRewardEvent(msg.sender, getTimestamp(), reward);
     }
@@ -381,123 +316,97 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
 
     /************************* Reward *******************************/
 
-    function earned(address account, uint32 tier)
-        public
-        view
-        returns (uint256)
-    {
-        if (_lockedReward[account][tier] != 0) {
-            return _lockedReward[account][tier];
+    function earned(address account) public view returns (uint256) {
+        if (_lockedReward[account] != 0) {
+            return _lockedReward[account];
         }
 
         //Reward = REWARD_PER_SEC * TimeDiff(in Seconds) * ShareOfPool
-        uint256 totalReward = 0;
-        uint256 tierStoredReward;
+        uint256 totalReward;
 
-        if (tier == ONE_MONTH) {
-            tierStoredReward = totalStoredRewardTier1[msg.sender];
-            for (
-                uint256 index = 0;
-                index < stakeCounts[account][ONE_MONTH];
-                index++
-            ) {
-                uint256 reward = (REWARD_PER_SEC *
-                    userStakePeriod(msg.sender, ONE_MONTH, index) *
-                    userShareOfPool(msg.sender, ONE_MONTH, index)) / 1e5;
-                totalReward += reward;
-            }
+        for (
+            uint256 index = 0;
+            index < stakeCounts[account][ONE_MONTH];
+            index++
+        ) {
+            uint256 reward = (REWARD_PER_SEC *
+                userStakePeriod(msg.sender, ONE_MONTH, index) *
+                userShareOfPool(msg.sender, ONE_MONTH, index)) / 1e5;
+            totalReward += reward;
         }
 
-        if (tier == TWO_MONTH) {
-            tierStoredReward = totalStoredRewardTier3[msg.sender];
-            for (
-                uint256 index = 0;
-                index < stakeCounts[account][TWO_MONTH];
-                index++
-            ) {
-                uint256 reward = (((REWARD_PER_SEC *
-                    userStakePeriod(msg.sender, TWO_MONTH, index) *
-                    userShareOfPool(msg.sender, TWO_MONTH, index)) * 150) / 100) /
-                    1e5;
-                totalReward += reward;
-            }
+        for (
+            uint256 index = 0;
+            index < stakeCounts[account][TWO_MONTH];
+            index++
+        ) {
+            uint256 reward = (((REWARD_PER_SEC *
+                userStakePeriod(msg.sender, TWO_MONTH, index) *
+                userShareOfPool(msg.sender, TWO_MONTH, index)) * 150) / 100) /
+                1e5;
+            totalReward += reward;
         }
 
-        if (tier == THREE_MONTH) {
-            tierStoredReward = totalStoredRewardTier3[msg.sender];
-            for (
-                uint256 index = 0;
-                index < stakeCounts[account][THREE_MONTH];
-                index++
-            ) {
-                uint256 reward = (((REWARD_PER_SEC *
-                    userStakePeriod(msg.sender, THREE_MONTH, index) *
-                    userShareOfPool(msg.sender, THREE_MONTH, index)) * 150) / 100) /
-                    1e5;
-                totalReward += reward;
-            }
+        for (
+            uint256 index = 0;
+            index < stakeCounts[account][THREE_MONTH];
+            index++
+        ) {
+            uint256 reward = (((REWARD_PER_SEC *
+                userStakePeriod(msg.sender, THREE_MONTH, index) *
+                userShareOfPool(msg.sender, THREE_MONTH, index)) * 150) / 100) /
+                1e5;
+            totalReward += reward;
         }
 
-        if (tier == FOUR_MONTH) {
-            tierStoredReward = totalStoredRewardTier3[msg.sender];
-            for (
-                uint256 index = 0;
-                index < stakeCounts[account][FOUR_MONTH];
-                index++
-            ) {
-                uint256 reward = (((REWARD_PER_SEC *
-                    userStakePeriod(msg.sender, FOUR_MONTH, index) *
-                    userShareOfPool(msg.sender, FOUR_MONTH, index)) * 150) / 100) /
-                    1e5;
-                totalReward += reward;
-            }
+        for (
+            uint256 index = 0;
+            index < stakeCounts[account][FOUR_MONTH];
+            index++
+        ) {
+            uint256 reward = (((REWARD_PER_SEC *
+                userStakePeriod(msg.sender, FOUR_MONTH, index) *
+                userShareOfPool(msg.sender, FOUR_MONTH, index)) * 150) / 100) /
+                1e5;
+            totalReward += reward;
         }
 
-
-        if (tier == EIGHT_MONTH) {
-            tierStoredReward = totalStoredRewardTier6[msg.sender];
-            for (
-                uint256 index = 0;
-                index < stakeCounts[account][EIGHT_MONTH];
-                index++
-            ) {
-                uint256 reward = (
-                    ((REWARD_PER_SEC *
-                        userStakePeriod(msg.sender, EIGHT_MONTH, index) *
-                        userShareOfPool(msg.sender, EIGHT_MONTH, index)) * 300)
-                ) / 1e5;
-                totalReward += reward;
-            }
+        for (
+            uint256 index = 0;
+            index < stakeCounts[account][EIGHT_MONTH];
+            index++
+        ) {
+            uint256 reward = (
+                ((REWARD_PER_SEC *
+                    userStakePeriod(msg.sender, EIGHT_MONTH, index) *
+                    userShareOfPool(msg.sender, EIGHT_MONTH, index)) * 300)
+            ) / 1e5;
+            totalReward += reward;
         }
 
-        if (tier == TWELVE_MONTH) {
-            tierStoredReward = totalStoredRewardTier12[msg.sender];
-            for (
-                uint256 index = 0;
-                index < stakeCounts[account][TWELVE_MONTH];
-                index++
-            ) {
-                uint256 reward = (
-                    ((REWARD_PER_SEC *
-                        userStakePeriod(msg.sender, tier, index) *
-                        userShareOfPool(msg.sender, tier, index)) * 400)
-                ) / 1e5;
-                totalReward += reward;
-            }
+        for (
+            uint256 index = 0;
+            index < stakeCounts[account][TWELVE_MONTH];
+            index++
+        ) {
+            uint256 reward = (
+                ((REWARD_PER_SEC *
+                    userStakePeriod(msg.sender, TWELVE_MONTH, index) *
+                    userShareOfPool(msg.sender, TWELVE_MONTH, index)) * 400)
+            ) / 1e5;
+            totalReward += reward;
         }
 
         return totalReward - tierStoredReward;
     }
 
-    modifier updateReward(address account, uint32 tier) {
+    modifier updateReward(address account) {
         totalStoredRewardTier1[account] += earned(account, ONE_MONTH);
         totalStoredRewardTier3[account] += earned(account, TWO_MONTH);
         totalStoredRewardTier3[account] += earned(account, THREE_MONTH);
         totalStoredRewardTier3[account] += earned(account, FOUR_MONTH);
-        totalStoredRewardTier6[account] += earned(account, EIGH_MONTH);
+        totalStoredRewardTier8[account] += earned(account, EIGHT_MONTH);
         totalStoredRewardTier12[account] += earned(account, TWELVE_MONTH);
-
-
         _;
     }
 
