@@ -36,8 +36,9 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
     mapping(address => mapping(uint32 => uint256)) private _releaseBalancesTime;
     mapping(address => mapping(uint32 => uint256)) private _lockedBalances;
 
-    mapping(address => uint256) private _releaseRewardTime;
-    mapping(address => uint256) private _lockedReward;
+    mapping(address => mapping(uint32 => uint256)) private _releaseRewardTime;
+    mapping(address => mapping(uint32 => uint256)) private _lockedReward;
+    uint32 lockRewardCount;
 
     mapping(address => uint256) public totalStoredReward;
 
@@ -114,7 +115,7 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
         return block.timestamp;
     }
 
-    function status(address _account, uint32 tier)
+    function stakingStatus(address _account, uint32 tier)
         public
         view
         returns (string memory)
@@ -123,14 +124,10 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
             return "STAKED";
         }
 
-        if (_lockedReward[_account] != 0) {
-            return "REWARD IS LOCKED";
-        }
-
         return "NO STAKE";
     }
 
-    function isUnlock(address account, uint32 tier) public view returns (bool) {
+    function isBalancesUnlocked(address account, uint32 tier) public view returns (bool) {
         return _releaseBalancesTime[account][tier] <= getTimestamp();
     }
 
@@ -200,17 +197,17 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
         emit ClaimBalanceEvent(msg.sender, getTimestamp(), balance);
     }
 
-    function claimReward() external {
-        require(_releaseRewardTime[msg.sender] != 0);
-        require(_releaseRewardTime[msg.sender] <= getTimestamp());
+    function claimReward(uint32 count) external {
+        require(_releaseRewardTime[msg.sender][count] != 0);
+        require(_releaseRewardTime[msg.sender][count] <= getTimestamp());
 
-        uint256 reward = _lockedReward[msg.sender];
+        uint256 reward = _lockedReward[msg.sender][count];
 
         //Transfer Lakrima
         ECIO_TOKEN.transfer(msg.sender, reward);
 
-        _lockedReward[msg.sender] = 0;
-        _releaseRewardTime[msg.sender] = 0;
+        delete _lockedReward[msg.sender][count];
+        delete _releaseRewardTime[msg.sender][count];
 
         emit ClaimRewardEvent(msg.sender, getTimestamp(), reward);
     }
@@ -305,8 +302,8 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
     }
 
     function lockReward(uint256 reward) internal {
-        _lockedReward[msg.sender] = reward;
-        _releaseRewardTime[msg.sender] = getTimestamp() + 60 days; // lock 60 days
+        _lockedReward[msg.sender][count] = reward;
+        _releaseRewardTime[msg.sender][count] = getTimestamp() + 60 days; // lock 60 days
     }
 
     /************************* Reward *******************************/
