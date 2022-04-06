@@ -39,12 +39,7 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
     mapping(address => uint256) private _releaseRewardTime;
     mapping(address => uint256) private _lockedReward;
 
-    mapping(address => uint256) public totalStoredRewardTier1;
-    mapping(address => uint256) public totalStoredRewardTier2;
-    mapping(address => uint256) public totalStoredRewardTier3;
-    mapping(address => uint256) public totalStoredRewardTier4;
-    mapping(address => uint256) public totalStoredRewardTier8;
-    mapping(address => uint256) public totalStoredRewardTier12;
+    mapping(address => uint256) public totalStoredReward;
 
     mapping(address => mapping(uint32 => uint128)) public stakeCounts;
     mapping(address => mapping(uint32 => Stake[])) private stakers;
@@ -205,7 +200,7 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
         emit ClaimBalanceEvent(msg.sender, getTimestamp(), balance);
     }
 
-    function claimReward(uint32 tier) external {
+    function claimReward() external {
         require(_releaseRewardTime[msg.sender] != 0);
         require(_releaseRewardTime[msg.sender] <= getTimestamp());
 
@@ -309,7 +304,7 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
         }
     }
 
-    function lockReward(uint256 reward, uint32 tier) internal {
+    function lockReward(uint256 reward) internal {
         _lockedReward[msg.sender] = reward;
         _releaseRewardTime[msg.sender] = getTimestamp() + 60 days; // lock 60 days
     }
@@ -401,12 +396,7 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
     }
 
     modifier updateReward(address account) {
-        totalStoredRewardTier1[account] += earned(account, ONE_MONTH);
-        totalStoredRewardTier3[account] += earned(account, TWO_MONTH);
-        totalStoredRewardTier3[account] += earned(account, THREE_MONTH);
-        totalStoredRewardTier3[account] += earned(account, FOUR_MONTH);
-        totalStoredRewardTier8[account] += earned(account, EIGHT_MONTH);
-        totalStoredRewardTier12[account] += earned(account, TWELVE_MONTH);
+        totalStoredReward[account] += earned(account);
         _;
     }
 
