@@ -402,8 +402,23 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
                 index++
             ) {
                 uint256 reward = (REWARD_PER_SEC *
-                    userStakePeriod(msg.sender, tier, index) *
-                    userShareOfPool(msg.sender, tier, index)) / 1e5;
+                    userStakePeriod(msg.sender, ONE_MONTH, index) *
+                    userShareOfPool(msg.sender, ONE_MONTH, index)) / 1e5;
+                totalReward += reward;
+            }
+        }
+
+        if (tier == TWO_MONTH) {
+            tierStoredReward = totalStoredRewardTier3[msg.sender];
+            for (
+                uint256 index = 0;
+                index < stakeCounts[account][TWO_MONTH];
+                index++
+            ) {
+                uint256 reward = (((REWARD_PER_SEC *
+                    userStakePeriod(msg.sender, TWO_MONTH, index) *
+                    userShareOfPool(msg.sender, TWO_MONTH, index)) * 150) / 100) /
+                    1e5;
                 totalReward += reward;
             }
         }
@@ -416,24 +431,40 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
                 index++
             ) {
                 uint256 reward = (((REWARD_PER_SEC *
-                    userStakePeriod(msg.sender, tier, index) *
-                    userShareOfPool(msg.sender, tier, index)) * 150) / 100) /
+                    userStakePeriod(msg.sender, THREE_MONTH, index) *
+                    userShareOfPool(msg.sender, THREE_MONTH, index)) * 150) / 100) /
                     1e5;
                 totalReward += reward;
             }
         }
 
-        if (tier == SIX_MONTH) {
+        if (tier == FOUR_MONTH) {
+            tierStoredReward = totalStoredRewardTier3[msg.sender];
+            for (
+                uint256 index = 0;
+                index < stakeCounts[account][FOUR_MONTH];
+                index++
+            ) {
+                uint256 reward = (((REWARD_PER_SEC *
+                    userStakePeriod(msg.sender, FOUR_MONTH, index) *
+                    userShareOfPool(msg.sender, FOUR_MONTH, index)) * 150) / 100) /
+                    1e5;
+                totalReward += reward;
+            }
+        }
+
+
+        if (tier == EIGHT_MONTH) {
             tierStoredReward = totalStoredRewardTier6[msg.sender];
             for (
                 uint256 index = 0;
-                index < stakeCounts[account][SIX_MONTH];
+                index < stakeCounts[account][EIGHT_MONTH];
                 index++
             ) {
                 uint256 reward = (
                     ((REWARD_PER_SEC *
-                        userStakePeriod(msg.sender, tier, index) *
-                        userShareOfPool(msg.sender, tier, index)) * 300)
+                        userStakePeriod(msg.sender, EIGHT_MONTH, index) *
+                        userShareOfPool(msg.sender, EIGHT_MONTH, index)) * 300)
                 ) / 1e5;
                 totalReward += reward;
             }
