@@ -9,7 +9,6 @@ import "hardhat/console.sol";
 
 contract LPStakingECIOUSDTier is Ownable, Initializable {
     // ************** Variables ******************** //
-    uint256 public startPool;
 
     uint256 public _totalSupply; // total staked amount
     uint256 private REWARD_PER_DAY = 1 * 1e6 * 1e18; // 1,000,000, ecio per day
@@ -18,19 +17,17 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
     uint256 public _poolClaimedReward;
 
     uint32 private ONE_MONTH = 0;
-    uint32 private THREE_MONTH = 1;
-    uint32 private SIX_MONTH = 2;
-    uint32 private TWELVE_MONTH = 3;
+    uint32 private TWO_MONTH = 1;
+    uint32 private THREE_MONTH = 2;
+    uint32 private FOUR_MONTH = 3;
+    uint32 private EIGHT_MONTH = 4;
+    uint32 private TWELVE_MONTH = 5;
 
     // ************** Structs ******************** //
 
     struct Stake {
         uint256 amount;
         uint256 enterTime;
-    }
-
-    struct StoredReward {
-        uint256 lastUpdateTime;
     }
 
     // ************** MAPPINGs ******************** //
@@ -91,7 +88,6 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
     // ************** Update Function ******************** //
 
     function initialize() public onlyOwner initializer {
-        startPool = getTimestamp();
         REWARD_PER_SEC = REWARD_PER_DAY / 86400;
     }
 
@@ -190,12 +186,12 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
             totalStoredRewardTier1[msg.sender] = 0;
         }
 
-        if (tier == THREE_MONTH) {
+        if (tier == TWO_MONTH) {
             reward =
-                earned(msg.sender, tier) +
+                earned(msg.sender, TWO_MONTH) +
                 totalStoredRewardTier3[msg.sender];
 
-            lockReward(reward, tier);
+            lockReward(reward, TWO_MONTH);
 
             //Pool's info
             _poolClaimedReward += reward;
@@ -203,7 +199,20 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
             totalStoredRewardTier3[msg.sender] = 0;
         }
 
-        if (tier == SIX_MONTH) {
+        if (tier == THREE_MONTH) {
+            reward =
+                earned(msg.sender, THREE_MONTH) +
+                totalStoredRewardTier3[msg.sender];
+
+            lockReward(reward, THREE_MONTH);
+
+            //Pool's info
+            _poolClaimedReward += reward;
+
+            totalStoredRewardTier3[msg.sender] = 0;
+        }
+
+        if (tier == EIGHT_MONTH) {
             reward =
                 earned(msg.sender, tier) +
                 totalStoredRewardTier6[msg.sender];
@@ -276,9 +285,7 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
         emit ClaimRewardEvent(msg.sender, getTimestamp(), reward);
     }
 
-    function stake(uint256 amount, uint32 tier)
-        external
-    {
+    function stake(uint256 amount, uint32 tier) external {
         //validate
         uint256 timestamp = getTimestamp();
 
@@ -304,14 +311,14 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
             lockBalance(amount, THREE_MONTH);
         }
 
-        if (tier == SIX_MONTH) {
+        if (tier == EIGHT_MONTH) {
             _totalSupply += amount;
-            balances[msg.sender][tier] += amount;
-            stakers[msg.sender][SIX_MONTH].push(Stake(amount, timestamp));
-            stakeCounts[msg.sender][tier] += 1;
+            balances[msg.sender][EIGHT_MONTH] += amount;
+            stakers[msg.sender][EIGHT_MONTH].push(Stake(amount, timestamp));
+            stakeCounts[msg.sender][EIGHT_MONTH] += 1;
             LP_TOKEN.transferFrom(msg.sender, address(this), amount);
 
-            lockBalance(amount, SIX_MONTH);
+            lockBalance(amount, EIGHT_MONTH);
         }
 
         if (tier == TWELVE_MONTH) {
@@ -336,22 +343,34 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
                 30 days; // lock 30 days || 90 days
         }
 
+        if (tier == TWO_MONTH) {
+            _releaseBalancesTime[msg.sender][TWO_MONTH] =
+                getTimestamp() +
+                60 days; // lock 30 days || 90 days
+        }
+
         if (tier == THREE_MONTH) {
             _releaseBalancesTime[msg.sender][THREE_MONTH] =
                 getTimestamp() +
                 90 days; // lock 30 days || 90 days
         }
 
-        if (tier == SIX_MONTH) {
-            _releaseBalancesTime[msg.sender][SIX_MONTH] =
+        if (tier == FOUR_MONTH) {
+            _releaseBalancesTime[msg.sender][FOUR_MONTH] =
                 getTimestamp() +
-                180 days; // lock 30 days || 90 days
+                120 days; // lock 30 days || 90 days
+        }
+
+        if (tier == EIGHT_MONTH) {
+            _releaseBalancesTime[msg.sender][EIGHT_MONTH] =
+                getTimestamp() +
+                240 days; // lock 30 days || 90 days
         }
 
         if (tier == TWELVE_MONTH) {
             _releaseBalancesTime[msg.sender][TWELVE_MONTH] =
                 getTimestamp() +
-                365 days; // lock 30 days || 90 days
+                360 days; // lock 30 days || 90 days
         }
     }
 
@@ -440,21 +459,14 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
     }
 
     modifier updateReward(address account, uint32 tier) {
-        if (tier == ONE_MONTH) {
-            totalStoredRewardTier1[account] += earned(account, ONE_MONTH);
-        }
+        totalStoredRewardTier1[account] += earned(account, ONE_MONTH);
+        totalStoredRewardTier3[account] += earned(account, TWO_MONTH);
+        totalStoredRewardTier3[account] += earned(account, THREE_MONTH);
+        totalStoredRewardTier3[account] += earned(account, FOUR_MONTH);
+        totalStoredRewardTier6[account] += earned(account, EIGH_MONTH);
+        totalStoredRewardTier12[account] += earned(account, TWELVE_MONTH);
 
-        if (tier == THREE_MONTH) {
-            totalStoredRewardTier3[account] += earned(account, THREE_MONTH);
-        }
 
-        if (tier == SIX_MONTH) {
-            totalStoredRewardTier6[account] += earned(account, SIX_MONTH);
-        }
-
-        if (tier == TWELVE_MONTH) {
-            totalStoredRewardTier12[account] += earned(account, TWELVE_MONTH);
-        }
         _;
     }
 

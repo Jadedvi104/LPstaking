@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -12,7 +12,7 @@ contract LPStakingECIOUSD is Ownable, Initializable {
     uint256 public startPool;
 
     uint256 private _totalSupply; // total staked amount
-    uint256 private REWARD_PER_DAY = 1 * 1e7 * 1e18; // 1,000,000, ecio per day
+    uint256 private REWARD_PER_DAY = 1 * 1e6 * 1e18; // 1,000,000, ecio per day
 
     uint256 public REWARD_PER_SEC; // to be init || REWARD_PER_DAY / 86400;
 
