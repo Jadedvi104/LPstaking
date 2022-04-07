@@ -38,7 +38,6 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
 
     mapping(address => mapping(uint32 => uint256)) private _releaseRewardTime;
     mapping(address => mapping(uint32 => uint256)) private _lockedReward;
-    uint32 lockRewardCount;
 
     mapping(address => uint256) public totalStoredReward;
 
@@ -127,7 +126,11 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
         return "NO STAKE";
     }
 
-    function isBalancesUnlocked(address account, uint32 tier) public view returns (bool) {
+    function isBalancesUnlocked(address account, uint32 tier)
+        public
+        view
+        returns (bool)
+    {
         return _releaseBalancesTime[account][tier] <= getTimestamp();
     }
 
@@ -173,13 +176,6 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
         emit UnStakeEvent(msg.sender, getTimestamp(), balance);
     }
 
-    function someThingAboutReward(uint32 tier)
-        external
-        updateReward(msg.sender)
-    {
-        uint256 reward;
-    }
-
     function claimBalance(uint32 tier) external {
         require(_releaseBalancesTime[msg.sender][tier] != 0);
         require(_releaseBalancesTime[msg.sender][tier] <= getTimestamp());
@@ -195,6 +191,13 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
         _releaseBalancesTime[msg.sender][tier] = 0;
 
         emit ClaimBalanceEvent(msg.sender, getTimestamp(), balance);
+    }
+
+    function someThingAboutReward(uint32 tier)
+        external
+        updateReward(msg.sender)
+    {
+        uint256 reward;
     }
 
     function claimReward(uint32 count) external {
@@ -302,8 +305,9 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
     }
 
     function lockReward(uint256 reward) internal {
-        _lockedReward[msg.sender][count] = reward;
-        _releaseRewardTime[msg.sender][count] = getTimestamp() + 60 days; // lock 60 days
+        _lockedReward[msg.sender] = reward;
+        _releaseRewardTime[msg.sender] = getTimestamp() + 60 days; // lock 60 days
+
     }
 
     /************************* Reward *******************************/
@@ -346,8 +350,7 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
         ) {
             uint256 reward = ((REWARD_PER_SEC *
                 userStakePeriod(msg.sender, THREE_MONTH, index) *
-                userShareOfPool(msg.sender, THREE_MONTH, index)) * 2) /
-                1e5;
+                userShareOfPool(msg.sender, THREE_MONTH, index)) * 2) / 1e5;
             totalReward += reward;
         }
 
@@ -358,8 +361,7 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
         ) {
             uint256 reward = ((REWARD_PER_SEC *
                 userStakePeriod(msg.sender, FOUR_MONTH, index) *
-                userShareOfPool(msg.sender, FOUR_MONTH, index)) * 3) /
-                1e5;
+                userShareOfPool(msg.sender, FOUR_MONTH, index)) * 3) / 1e5;
             totalReward += reward;
         }
 
