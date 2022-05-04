@@ -311,7 +311,7 @@ contract LPStakingECIOUSDTier is Ownable, Initializable {
     }
 
     /************************* Reward *******************************/
-
+ 
     function earned(address account) public view returns (uint256) {
         if (_lockedReward[account] != 0) {
             return _lockedReward[account];

@@ -8,3 +8,7 @@ typechain
 cache
 artifacts
 secrets.json
+
+LpstakingKen.sol
+ECIOToken.sol
+LPStakingECIOUSD.sol
